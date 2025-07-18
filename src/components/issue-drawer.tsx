@@ -15,9 +15,9 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { formatDistanceToNow } from "date-fns";
-import { ExternalLink, X, Brain, Loader2 } from "lucide-react";
+import { ExternalLink, X, Brain, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { useState } from "react";
-import { createDevinSession, generateIssueScopingPrompt } from "@/lib/devin-api";
+import { createDevinSession, generateIssueScopingPrompt, pollDevinSessionUntilComplete, extractAnalysisFromSession } from "@/lib/devin-api";
 
 interface IssueDrawerProps {
   issue: GitHubIssue | null;
@@ -25,8 +25,17 @@ interface IssueDrawerProps {
   onOpenChange: (open: boolean) => void;
 }
 
+interface AnalysisResult {
+  scope: string;
+  confidenceScore: number | null;
+  fullAnalysis: string;
+}
+
 export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
   const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisStatus, setAnalysisStatus] = useState<string>('');
 
   const getStateColor = (state: string) => {
     return state === "open" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800";
@@ -37,6 +46,10 @@ export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
 
     try {
       setIsCreatingSession(true);
+      setAnalysisResult(null);
+      setAnalysisError(null);
+      setAnalysisStatus('Creating Devin session...');
+
       const prompt = generateIssueScopingPrompt({
         title: issue.title,
         body: issue.body,
@@ -46,10 +59,23 @@ export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
       });
 
       const session = await createDevinSession(prompt);
-      window.open(session.url, '_blank');
+      setAnalysisStatus('Devin is analyzing the issue...');
+
+      const sessionDetails = await pollDevinSessionUntilComplete(
+        session.session_id,
+        (status) => {
+          setAnalysisStatus(`Devin is ${status}...`);
+        }
+      );
+
+      const analysis = extractAnalysisFromSession(sessionDetails);
+      setAnalysisResult(analysis);
+      setAnalysisStatus('');
+
     } catch (error) {
-      console.error('Failed to create Devin session:', error);
-      alert('Failed to create Devin session. Please check your API key configuration.');
+      console.error('Failed to get Devin analysis:', error);
+      setAnalysisError(error instanceof Error ? error.message : 'Failed to get analysis');
+      setAnalysisStatus('');
     } finally {
       setIsCreatingSession(false);
     }
@@ -147,6 +173,62 @@ export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
                 </div>
               )}
             </div>
+
+            {(isCreatingSession || analysisResult || analysisError) && (
+              <div className="space-y-3 border-t pt-4">
+                <h4 className="text-sm font-medium flex items-center gap-2">
+                  <Brain className="h-4 w-4" />
+                  Devin Analysis
+                </h4>
+
+                {isCreatingSession && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {analysisStatus || 'Analyzing...'}
+                  </div>
+                )}
+
+                {analysisError && (
+                  <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                    <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-red-700">
+                      <div className="font-medium">Analysis Failed</div>
+                      <div className="mt-1">{analysisError}</div>
+                    </div>
+                  </div>
+                )}
+
+                {analysisResult && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm text-green-700">
+                      <CheckCircle className="h-4 w-4" />
+                      Analysis Complete
+                      {analysisResult.confidenceScore && (
+                        <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
+                          Confidence: {analysisResult.confidenceScore}/10
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <h5 className="text-sm font-medium">Scope Assessment</h5>
+                      <div className="text-sm text-muted-foreground bg-muted/30 rounded-md p-3">
+                        {analysisResult.scope}
+                      </div>
+                    </div>
+
+                    <details className="text-sm">
+                      <summary className="cursor-pointer font-medium hover:text-primary">
+                        View Full Analysis
+                      </summary>
+                      <div className="mt-2 text-muted-foreground bg-muted/30 rounded-md p-3 whitespace-pre-wrap max-h-60 overflow-y-auto">
+                        {analysisResult.fullAnalysis}
+                      </div>
+                    </details>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -160,7 +242,12 @@ export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
               {isCreatingSession ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Creating Session...
+                  {analysisStatus || 'Analyzing...'}
+                </>
+              ) : analysisResult ? (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Re-analyze with Devin
                 </>
               ) : (
                 <>
