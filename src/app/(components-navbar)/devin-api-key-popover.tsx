@@ -9,7 +9,7 @@ export function DevinApiKeyPopover() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    const stored = typeof window !== 'undefined' ? localStorage.getItem("devinApiKey") : null;
+    const stored = typeof window !== 'undefined' ? sessionStorage.getItem("devinApiKey") : null;
     if (stored) {
       setApiKey(stored);
       setInputValue(stored);
@@ -17,7 +17,7 @@ export function DevinApiKeyPopover() {
   }, []);
 
   const handleSave = () => {
-    localStorage.setItem("devinApiKey", inputValue);
+    sessionStorage.setItem("devinApiKey", inputValue);
     setApiKey(inputValue);
     setOpen(false);
   };
@@ -36,7 +36,7 @@ export function DevinApiKeyPopover() {
           className="ml-2"
           type="button"
         >
-          {apiKey ? "Edit Devin API Key" : "Add Devin API Key"}
+          Devin API Key
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-64">

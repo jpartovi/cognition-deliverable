@@ -51,6 +51,22 @@ export function IssuesTable() {
     }
   };
 
+  // Load repo from sessionStorage on mount
+  useEffect(() => {
+    const stored = typeof window !== 'undefined' ? sessionStorage.getItem("devinRepo") : null;
+    if (stored) {
+      setRepo(stored);
+    }
+  }, []);
+
+  // Save repo to sessionStorage on change
+  const handleRepoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setRepo(e.target.value);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem("devinRepo", e.target.value);
+    }
+  };
+
   useEffect(() => {
     if (isValidRepo) {
       loadIssues();
@@ -75,10 +91,10 @@ export function IssuesTable() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div className="flex items-center gap-2 w-full max-w-md">
           <Input
-            placeholder="Enter public repo (owner/repo)"
+            placeholder="Enter public repo that is connected to Devin (owner/repo)"
             value={repo}
-            onChange={e => setRepo(e.target.value)}
-            className=""
+            onChange={handleRepoChange}
+            className="min-w-[420px]"
           />
           <Button onClick={loadIssues} variant="outline" size="sm" disabled={!isValidRepo || loading}>
             <RefreshCw className="h-4 w-4 mr-2" />
