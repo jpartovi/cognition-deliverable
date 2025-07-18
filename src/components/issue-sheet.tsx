@@ -15,10 +15,9 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { formatDistanceToNow } from "date-fns";
-import { ExternalLink, X, Brain, Loader2, Play, CheckCircle } from "lucide-react";
+import { ExternalLink, X, Brain, Loader2, Play } from "lucide-react";
 import { useState } from "react";
-import { createDevinSession, generateIssueScopingPrompt, sendImplementationMessage, pollSessionUntilComplete } from "@/lib/devin-api";
-import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { createDevinSession, generateIssueScopingPrompt, sendMessageToSession, pollSessionUntilComplete, stringifyIssue, generateIssueCompletingPrompt } from "@/lib/devin-api";
 
 interface IssueSheetProps {
   issue: GitHubIssue | null;
@@ -27,95 +26,75 @@ interface IssueSheetProps {
 }
 
 export function IssueSheet({ issue, isOpen, onOpenChange }: IssueSheetProps) {
-  const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionUrl, setSessionUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isImplementing, setIsImplementing] = useState(false);
-  const [isScopingComplete, setIsScopingComplete] = useState(false);
-  const [isPolling, setIsPolling] = useState(false);
-  const [pollingStatus, setPollingStatus] = useState("");
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [devinStatus, setDevinStatus] = useState<string>("");
 
   const getStateColor = (state: string) => {
     return state === "open" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800";
   };
 
+  const handleDevinRequest = async (mode: "scope" | "complete") => {
+    if (sessionId) {
+      const noContextPrompt = mode === "scope"
+        ? generateIssueScopingPrompt()
+        : generateIssueCompletingPrompt();
+      await sendMessageToSession(sessionId, noContextPrompt);
+      // Start polling for status
+      setDevinStatus("Polling Devin session status...");
+      pollSessionUntilComplete(sessionId, (status) => setDevinStatus(`Devin status: ${status}`))
+        .catch(() => setDevinStatus("Unable to get session status"));
+      return { session_id: sessionId, url: sessionUrl };
+    }
+    if (!issue) throw new Error("No issue selected");
+    let prompt: string;
+    if (mode === "scope") {
+      prompt = generateIssueScopingPrompt(issue);
+    } else {
+      prompt = generateIssueCompletingPrompt(issue);
+    }
+    const session = await createDevinSession(prompt, `GitHub Issue #${issue.number}: ${issue.title}`);
+    setSessionId(session.session_id);
+    setSessionUrl(session.url);
+    // Start polling for status
+    setDevinStatus("Polling Devin session status...");
+    pollSessionUntilComplete(session.session_id, (status) => setDevinStatus(`Devin is ${status}`))
+      .catch(() => setDevinStatus("Unable to get session status"));
+    return session;
+  };
+
   const handleScopeWithDevin = async () => {
-    if (!issue) return;
+    setError(null);
     try {
-      setIsCreatingSession(true);
-      setError(null);
-      setIsScopingComplete(false);
-      setPollingStatus("");
-      setDialogOpen(true);
-
-      const prompt = generateIssueScopingPrompt({
-        title: issue.title,
-        body: issue.body,
-        number: issue.number,
-        html_url: issue.html_url,
-        labels: issue.labels,
-      });
-      const session = await createDevinSession(prompt, `GitHub Issue #${issue.number}: ${issue.title}`);
-      setSessionId(session.session_id);
-      setSessionUrl(session.url);
-
-      setIsPolling(true);
-      setPollingStatus("Devin is analyzing the issue...");
-      try {
-        await pollSessionUntilComplete(session.session_id, (status) => {
-          setPollingStatus(`Devin is ${status}...`);
-        });
-        setIsScopingComplete(true);
-        setPollingStatus("");
-      } catch (pollError) {
-        console.error("Failed to poll session:", pollError);
-        setError("Session polling failed. You can still manually check the session.");
-      } finally {
-        setIsPolling(false);
-      }
+      await handleDevinRequest("scope");
     } catch (error) {
-      console.error("Failed to create Devin session:", error);
       setError(error instanceof Error ? error.message : "Failed to create session");
-    } finally {
-      setIsCreatingSession(false);
     }
   };
 
-  const handleImplementWithDevin = async () => {
-    if (!sessionId) return;
-
+  const handleCompleteWithDevin = async () => {
+    setError(null);
     try {
-      setIsImplementing(true);
-      setError(null);
-
-      await sendImplementationMessage(sessionId);
-
-
+      await handleDevinRequest("complete");
     } catch (error) {
-      console.error('Failed to send implementation message:', error);
-      setError(error instanceof Error ? error.message : 'Failed to send implementation message');
-    } finally {
-      setIsImplementing(false);
+      setError(error instanceof Error ? error.message : "Failed to complete with Devin");
     }
   };
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent className="max-h-[90vh]">
+      <SheetContent className="h-screen w-full max-w-xl">
         <SheetHeader className="pb-4">
-          <div className="flex items-start justify-center">
-            <div className="flex-1 min-w-0 text-center">
-              <SheetTitle className="text-xl font-semibold mb-2">
-                {issue?.title}
-              </SheetTitle>
-              <SheetDescription className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                <span className="font-mono">#{issue?.number}</span>
-                <span>•</span>
-                <span>opened {issue && formatDistanceToNow(new Date(issue.created_at), { addSuffix: true })} by {issue?.user.login}</span>
-              </SheetDescription>
-            </div>
+          <div className="flex-1 min-w-0 text-center">
+            <SheetTitle className="text-xl font-semibold mb-2">
+              {issue?.title}
+            </SheetTitle>
+            <SheetDescription className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <span className="font-mono">#{issue?.number}</span>
+              <span>•</span>
+              <span>opened {issue && formatDistanceToNow(new Date(issue.created_at), { addSuffix: true })} by {issue?.user.login}</span>
+            </SheetDescription>
           </div>
         </SheetHeader>
 
@@ -188,96 +167,15 @@ export function IssueSheet({ issue, isOpen, onOpenChange }: IssueSheetProps) {
                 </div>
               )}
             </div>
-
-            {(sessionUrl || error) && (
-              <div className="space-y-3 border-t pt-4">
-                <h4 className="text-sm font-medium flex items-center gap-2">
-                  <Brain className="h-4 w-4" />
-                  Devin Session
-                </h4>
-
-                {error && (
-                  <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-md">
-                    <X className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
-                    <div className="text-sm text-red-700">
-                      <div className="font-medium">Session Error</div>
-                      <div className="mt-1">{error}</div>
-                    </div>
-                  </div>
-                )}
-
-                {sessionUrl && (
-                  <div className="space-y-3">
-                    <div className="text-sm">
-                      <a 
-                        href={sessionUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        View Devin Session
-                      </a>
-                    </div>
-
-                    {sessionId && (
-                      <Button
-                        onClick={handleImplementWithDevin}
-                        disabled={isImplementing}
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                      >
-                        {isImplementing ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Sending Implementation Request...
-                          </>
-                        ) : (
-                          <>
-                            <Play className="h-4 w-4 mr-2" />
-                            Implement Solution
-                          </>
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
 
         <SheetFooter className="pt-4">
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button 
-                onClick={handleScopeWithDevin}
-                disabled={!issue || isCreatingSession}
-                className="flex-1"
-              >
-                {isCreatingSession ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Creating Session...
-                  </>
-                ) : (
-                  <>
-                    <Brain className="h-4 w-4 mr-2" />
-                    Scope with Devin
-                  </>
-                )}
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Devin Session</DialogTitle>
-                <DialogDescription>
-                  Use the link below to open the Devin session. Once scoping is complete, you can complete the issue with Devin.
-                </DialogDescription>
-              </DialogHeader>
+          {(sessionUrl || error) && (
+            <div className="space-y-3">
+
               {error && (
-                <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-md mb-2">
+                <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-md">
                   <X className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
                   <div className="text-sm text-red-700">
                     <div className="font-medium">Session Error</div>
@@ -285,58 +183,44 @@ export function IssueSheet({ issue, isOpen, onOpenChange }: IssueSheetProps) {
                   </div>
                 </div>
               )}
-              {sessionUrl ? (
-                <div className="space-y-4">
-                  <a
-                    href={sessionUrl}
-                    target="_blank"
+
+              {sessionUrl && (
+                <div className="text-center">
+                  <a 
+                    href={sessionUrl} 
+                    target="_blank" 
                     rel="noopener noreferrer"
-                    className="block text-blue-600 hover:text-blue-800 underline text-sm font-medium"
+                    className="text-blue-600 hover:text-blue-800 underline inline-flex items-center gap-1 text-sm"
                   >
-                    Open Devin Session
+                    {devinStatus
+                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                      : <ExternalLink className="h-3 w-3" />
+                    }
+                    {devinStatus ? `Session: ${devinStatus}` : "Devin Session"}
                   </a>
-                  <Button
-                    onClick={handleImplementWithDevin}
-                    disabled={!isScopingComplete || isImplementing}
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                  >
-                    {isImplementing ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Sending Implementation Request...
-                      </>
-                    ) : (
-                      <>
-                        <Play className="h-4 w-4 mr-2" />
-                        Complete Issue with Devin
-                      </>
-                    )}
-                  </Button>
-                  {isPolling && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      {pollingStatus}
-                    </div>
-                  )}
-                  {isScopingComplete && !isPolling && (
-                    <div className="flex items-center gap-2 text-sm text-green-600">
-                      <CheckCircle className="h-4 w-4" />
-                      Scoping complete! You can now complete the issue.
-                    </div>
-                  )}
                 </div>
-              ) : (
-                <div className="text-sm text-muted-foreground">Creating session...</div>
               )}
-              <DialogFooter>
-                <Button variant="secondary" onClick={() => setDialogOpen(false)}>
-                  Close
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+            </div>
+          )}
+          <div className="flex gap-2 w-full mb-2">
+            <Button
+              onClick={handleScopeWithDevin}
+              disabled={!issue}
+              className="flex-1"
+              variant="default"
+            >
+              <><Brain className="h-4 w-4 mr-2" />Scope with Devin</>
+            </Button>
+            <Button
+              onClick={handleCompleteWithDevin}
+              disabled={!issue}
+              className="flex-1"
+              variant="secondary"
+            >
+              <><Play className="h-4 w-4 mr-2" />Complete with Devin</>
+            </Button>
+          </div>
+          
           <Button asChild variant="outline" className="flex-1">
             <a 
               href={issue?.html_url} 

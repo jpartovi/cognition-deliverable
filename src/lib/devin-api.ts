@@ -41,14 +41,14 @@ export async function createDevinSession(prompt: string, title?: string): Promis
   return response.json() as Promise<DevinSessionResponse>;
 }
 
-export async function sendImplementationMessage(sessionId: string): Promise<void> {
+export async function sendMessageToSession(sessionId: string, message: string): Promise<void> {
   const response = await fetch(`/api/devin/sessions/${sessionId}/message`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      message: 'Now that you have scoped the issue, please implement the solution by making the necessary code changes to complete this GitHub issue.'
+      message
     }),
   });
 
@@ -78,11 +78,12 @@ export async function pollSessionUntilComplete(
   sessionId: string,
   onStatusUpdate?: (status: string) => void
 ): Promise<DevinSessionDetails> {
-  const maxAttempts = 60; // 5 minutes with 5-second intervals
+  const maxAttempts = 120; // 10 minutes with 5-second intervals
   let attempts = 0;
 
   while (attempts < maxAttempts) {
     const sessionDetails = await getSessionDetails(sessionId);
+    console.log('sessionDetails', sessionDetails);
     
     if (onStatusUpdate) {
       onStatusUpdate(sessionDetails.status);
@@ -106,7 +107,33 @@ export async function pollSessionUntilComplete(
   throw new Error('Session polling timed out');
 }
 
-export function generateIssueScopingPrompt(issue: {
+export function generateIssueScopingPrompt(issue?: {
+  title: string;
+  body?: string;
+  number: number;
+  html_url: string;
+  labels: Array<{ name: string }>;
+}): string {
+  if (!issue) {
+    return `Without implementing any changes, please scope this GitHub issue.\n\nPlease DO NOT implement any changes to the codebase yet. Once you have finished scoping, simply stop and wait for further instructions.`;
+  }
+  return `Without implementing any changes, please scope this GitHub issue.\n\n${stringifyIssue(issue)}\n\nPlease DO NOT implement any changes to the codebase yet. Once you have finished scoping, simply stop and wait for further instructions.`;
+}
+
+export function generateIssueCompletingPrompt(issue?: {
+  title: string;
+  body?: string;
+  number: number;
+  html_url: string;
+  labels: Array<{ name: string }>;
+}): string {
+  if (!issue) {
+    return `Please implement a solution for the described GitHub issue.`;
+  }
+  return `Please implement a solution for the following GitHub issue.\n\n${stringifyIssue(issue)}`;
+}
+
+export function stringifyIssue(issue: {
   title: string;
   body?: string;
   number: number;
@@ -117,14 +144,10 @@ export function generateIssueScopingPrompt(issue: {
     ? `Labels: ${issue.labels.map(l => l.name).join(', ')}`
     : 'No labels';
 
-  return `Without implementing any changes, please scope this GitHub issue.
-
-**Issue #${issue.number}: ${issue.title}**
+  return `**Issue #${issue.number}: ${issue.title}**
 **URL**: ${issue.html_url}
 **${labelsText}**
 
 **Description:**
-${issue.body || 'No description provided'}
-
-Please DO NOT implement any changes to the codebase yet. Once you have finished scoping, simply stop and wait for futher instructions.`;
+${issue.body || 'No description provided'}`;
 }
