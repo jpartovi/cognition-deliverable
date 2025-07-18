@@ -16,7 +16,7 @@ import { formatDistanceToNow } from "date-fns";
 import { RefreshCw, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { fetchIssues } from "@/lib/github-api";
-import { IssueDrawer } from "./issue-drawer";
+import { IssueSheet } from "./issue-sheet";
 
 export function IssuesTable() {
   const [issues, setIssues] = useState<GitHubIssue[]>([]);
@@ -198,7 +198,7 @@ export function IssuesTable() {
         </Table>
       </div>
 
-      <IssueDrawer 
+      <IssueSheet 
         issue={selectedIssue}
         isOpen={isDrawerOpen}
         onOpenChange={setIsDrawerOpen}

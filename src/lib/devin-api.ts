@@ -4,6 +4,21 @@ interface DevinSessionResponse {
   is_new_session: boolean;
 }
 
+interface DevinSessionDetails {
+  session_id: string;
+  status: string;
+  title?: string;
+  created_at: string;
+  updated_at: string;
+  structured_output?: unknown;
+  messages: Array<{
+    type: string;
+    message: string;
+    timestamp: string;
+    username?: string;
+    origin?: string;
+  }>;
+}
 
 
 export async function createDevinSession(prompt: string, title?: string): Promise<DevinSessionResponse> {
@@ -41,6 +56,54 @@ export async function sendImplementationMessage(sessionId: string): Promise<void
     const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
     throw new Error(errorData.error || `API error: ${response.status} ${response.statusText}`);
   }
+}
+
+export async function getSessionDetails(sessionId: string): Promise<DevinSessionDetails> {
+  const response = await fetch(`/api/devin/sessions/${sessionId}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(errorData.error || `API error: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json() as Promise<DevinSessionDetails>;
+}
+
+export async function pollSessionUntilComplete(
+  sessionId: string,
+  onStatusUpdate?: (status: string) => void
+): Promise<DevinSessionDetails> {
+  const maxAttempts = 60; // 5 minutes with 5-second intervals
+  let attempts = 0;
+
+  while (attempts < maxAttempts) {
+    const sessionDetails = await getSessionDetails(sessionId);
+    
+    if (onStatusUpdate) {
+      onStatusUpdate(sessionDetails.status);
+    }
+
+    // Check if the session has completed the initial scoping
+    // We consider it complete when there are messages and the status indicates completion
+    if (sessionDetails.messages && sessionDetails.messages.length > 0) {
+      const lastMessage = sessionDetails.messages[sessionDetails.messages.length - 1];
+      // Check if the last message is from the user (indicating scoping is done and waiting for next instruction)
+      if (lastMessage.origin === 'user' || sessionDetails.status === 'completed') {
+        return sessionDetails;
+      }
+    }
+
+    // Wait 5 seconds before next poll
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    attempts++;
+  }
+
+  throw new Error('Session polling timed out');
 }
 
 export function generateIssueScopingPrompt(issue: {

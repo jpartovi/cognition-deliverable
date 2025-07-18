@@ -6,31 +6,36 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerDescription,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer";
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { formatDistanceToNow } from "date-fns";
-import { ExternalLink, X, Brain, Loader2, Play } from "lucide-react";
+import { ExternalLink, X, Brain, Loader2, Play, CheckCircle } from "lucide-react";
 import { useState } from "react";
-import { createDevinSession, generateIssueScopingPrompt, sendImplementationMessage } from "@/lib/devin-api";
+import { createDevinSession, generateIssueScopingPrompt, sendImplementationMessage, pollSessionUntilComplete } from "@/lib/devin-api";
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
-interface IssueDrawerProps {
+interface IssueSheetProps {
   issue: GitHubIssue | null;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
+export function IssueSheet({ issue, isOpen, onOpenChange }: IssueSheetProps) {
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionUrl, setSessionUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isImplementing, setIsImplementing] = useState(false);
+  const [isScopingComplete, setIsScopingComplete] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
+  const [pollingStatus, setPollingStatus] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const getStateColor = (state: string) => {
     return state === "open" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800";
@@ -38,10 +43,12 @@ export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
 
   const handleScopeWithDevin = async () => {
     if (!issue) return;
-
     try {
       setIsCreatingSession(true);
       setError(null);
+      setIsScopingComplete(false);
+      setPollingStatus("");
+      setDialogOpen(true);
 
       const prompt = generateIssueScopingPrompt({
         title: issue.title,
@@ -50,16 +57,27 @@ export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
         html_url: issue.html_url,
         labels: issue.labels,
       });
-
       const session = await createDevinSession(prompt, `GitHub Issue #${issue.number}: ${issue.title}`);
       setSessionId(session.session_id);
       setSessionUrl(session.url);
 
-      window.open(session.url, '_blank');
-
+      setIsPolling(true);
+      setPollingStatus("Devin is analyzing the issue...");
+      try {
+        await pollSessionUntilComplete(session.session_id, (status) => {
+          setPollingStatus(`Devin is ${status}...`);
+        });
+        setIsScopingComplete(true);
+        setPollingStatus("");
+      } catch (pollError) {
+        console.error("Failed to poll session:", pollError);
+        setError("Session polling failed. You can still manually check the session.");
+      } finally {
+        setIsPolling(false);
+      }
     } catch (error) {
-      console.error('Failed to create Devin session:', error);
-      setError(error instanceof Error ? error.message : 'Failed to create session');
+      console.error("Failed to create Devin session:", error);
+      setError(error instanceof Error ? error.message : "Failed to create session");
     } finally {
       setIsCreatingSession(false);
     }
@@ -84,27 +102,22 @@ export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
   };
 
   return (
-    <Drawer open={isOpen} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[90vh]">
-        <DrawerHeader className="pb-4">
-          <div className="flex items-start justify-between">
+    <Sheet open={isOpen} onOpenChange={onOpenChange}>
+      <SheetContent className="max-h-[90vh]">
+        <SheetHeader className="pb-4">
+          <div className="flex items-start justify-center">
             <div className="flex-1 min-w-0 text-center">
-              <DrawerTitle className="text-xl font-semibold mb-2 pr-8">
+              <SheetTitle className="text-xl font-semibold mb-2">
                 {issue?.title}
-              </DrawerTitle>
-              <DrawerDescription className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              </SheetTitle>
+              <SheetDescription className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                 <span className="font-mono">#{issue?.number}</span>
                 <span>•</span>
                 <span>opened {issue && formatDistanceToNow(new Date(issue.created_at), { addSuffix: true })} by {issue?.user.login}</span>
-              </DrawerDescription>
+              </SheetDescription>
             </div>
-            <DrawerClose asChild>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                <X className="h-4 w-4" />
-              </Button>
-            </DrawerClose>
           </div>
-        </DrawerHeader>
+        </SheetHeader>
 
         <div className="px-4 pb-4 flex-1 overflow-y-auto">
           <div className="space-y-6">
@@ -235,39 +248,108 @@ export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
           </div>
         </div>
 
-        <DrawerFooter className="pt-4">
-          <div className="flex gap-2">
-            <Button 
-              onClick={handleScopeWithDevin}
-              disabled={!issue || isCreatingSession}
-              className="flex-1"
-            >
-              {isCreatingSession ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Creating Session...
-                </>
-              ) : (
-                <>
-                  <Brain className="h-4 w-4 mr-2" />
-                  Scope with Devin
-                </>
-              )}
-            </Button>
-            <Button asChild variant="outline" className="flex-1">
-              <a 
-                href={issue?.html_url} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2"
+        <SheetFooter className="pt-4">
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button 
+                onClick={handleScopeWithDevin}
+                disabled={!issue || isCreatingSession}
+                className="flex-1"
               >
-                <ExternalLink className="h-4 w-4" />
-                View on GitHub
-              </a>
-            </Button>
-          </div>
-        </DrawerFooter>
-      </DrawerContent>
-    </Drawer>
+                {isCreatingSession ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creating Session...
+                  </>
+                ) : (
+                  <>
+                    <Brain className="h-4 w-4 mr-2" />
+                    Scope with Devin
+                  </>
+                )}
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Devin Session</DialogTitle>
+                <DialogDescription>
+                  Use the link below to open the Devin session. Once scoping is complete, you can complete the issue with Devin.
+                </DialogDescription>
+              </DialogHeader>
+              {error && (
+                <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-md mb-2">
+                  <X className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-red-700">
+                    <div className="font-medium">Session Error</div>
+                    <div className="mt-1">{error}</div>
+                  </div>
+                </div>
+              )}
+              {sessionUrl ? (
+                <div className="space-y-4">
+                  <a
+                    href={sessionUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-blue-600 hover:text-blue-800 underline text-sm font-medium"
+                  >
+                    Open Devin Session
+                  </a>
+                  <Button
+                    onClick={handleImplementWithDevin}
+                    disabled={!isScopingComplete || isImplementing}
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                  >
+                    {isImplementing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Sending Implementation Request...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-4 w-4 mr-2" />
+                        Complete Issue with Devin
+                      </>
+                    )}
+                  </Button>
+                  {isPolling && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {pollingStatus}
+                    </div>
+                  )}
+                  {isScopingComplete && !isPolling && (
+                    <div className="flex items-center gap-2 text-sm text-green-600">
+                      <CheckCircle className="h-4 w-4" />
+                      Scoping complete! You can now complete the issue.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">Creating session...</div>
+              )}
+              <DialogFooter>
+                <Button variant="secondary" onClick={() => setDialogOpen(false)}>
+                  Close
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Button asChild variant="outline" className="flex-1">
+            <a 
+              href={issue?.html_url} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2"
+            >
+              <ExternalLink className="h-4 w-4" />
+              View on GitHub
+            </a>
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
