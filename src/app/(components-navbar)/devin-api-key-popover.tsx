@@ -46,7 +46,7 @@ export function DevinApiKeyPopover() {
           className="w-full border rounded px-2 py-1 text-sm mb-2 bg-background"
           value={inputValue}
           onChange={e => setInputValue(e.target.value)}
-          placeholder="sk-..."
+          placeholder="apk_user_..."
           autoFocus
         />
         <div className="flex justify-end gap-2">
