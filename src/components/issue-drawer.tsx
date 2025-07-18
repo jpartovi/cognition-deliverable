@@ -17,7 +17,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { ExternalLink, X, Brain, Loader2, Play } from "lucide-react";
 import { useState } from "react";
-import { createDevinSession, generateIssueScopingPrompt, sendImplementationMessage } from "@/lib/devin-api";
+import { createDevinSession, generateIssueScopingPrompt, sendImplementationMessage, getDevinSessionDetails } from "@/lib/devin-api";
 
 interface IssueDrawerProps {
   issue: GitHubIssue | null;
@@ -31,6 +31,8 @@ export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
   const [sessionUrl, setSessionUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isImplementing, setIsImplementing] = useState(false);
+  const [sessionStatus, setSessionStatus] = useState<string | null>(null);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
   const getStateColor = (state: string) => {
     return state === "open" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800";
@@ -57,12 +59,42 @@ export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
 
       window.open(session.url, '_blank');
 
+      startStatusPolling(session.session_id);
+
     } catch (error) {
       console.error('Failed to create Devin session:', error);
       setError(error instanceof Error ? error.message : 'Failed to create session');
     } finally {
       setIsCreatingSession(false);
     }
+  };
+
+  const startStatusPolling = async (sessionId: string) => {
+    setIsCheckingStatus(true);
+    setSessionStatus('working');
+
+    const pollInterval = 5000;
+    const maxPollingTime = 300000;
+    const startTime = Date.now();
+
+    const checkStatus = async () => {
+      try {
+        const details = await getDevinSessionDetails(sessionId);
+        setSessionStatus(details.status);
+
+        if (details.status !== 'working' || Date.now() - startTime > maxPollingTime) {
+          setIsCheckingStatus(false);
+          return;
+        }
+
+        setTimeout(checkStatus, pollInterval);
+      } catch (error) {
+        console.error('Failed to check session status:', error);
+        setIsCheckingStatus(false);
+      }
+    };
+
+    setTimeout(checkStatus, pollInterval);
   };
 
   const handleImplementWithDevin = async () => {
@@ -208,25 +240,36 @@ export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
                     </div>
 
                     {sessionId && (
-                      <Button
-                        onClick={handleImplementWithDevin}
-                        disabled={isImplementing}
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                      >
-                        {isImplementing ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Sending Implementation Request...
-                          </>
-                        ) : (
-                          <>
-                            <Play className="h-4 w-4 mr-2" />
-                            Implement Solution
-                          </>
+                      <div className="space-y-2">
+                        {isCheckingStatus && sessionStatus === 'working' && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Devin is working on scoping...
+                          </div>
                         )}
-                      </Button>
+                        
+                        {sessionStatus && sessionStatus !== 'working' && (
+                          <Button
+                            onClick={handleImplementWithDevin}
+                            disabled={isImplementing}
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                          >
+                            {isImplementing ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Sending Implementation Request...
+                              </>
+                            ) : (
+                              <>
+                                <Play className="h-4 w-4 mr-2" />
+                                Implement Solution
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
