@@ -33,11 +33,11 @@ export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
       <DrawerContent className="max-h-[90vh]">
         <DrawerHeader className="pb-4">
           <div className="flex items-start justify-between">
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 text-center">
               <DrawerTitle className="text-xl font-semibold mb-2 pr-8">
                 {issue?.title}
               </DrawerTitle>
-              <DrawerDescription className="flex items-center gap-2 text-sm text-muted-foreground">
+              <DrawerDescription className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                 <span className="font-mono">#{issue?.number}</span>
                 <span>•</span>
                 <span>opened {issue && formatDistanceToNow(new Date(issue.created_at), { addSuffix: true })} by {issue?.user.login}</span>
@@ -124,24 +124,17 @@ export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
         </div>
 
         <DrawerFooter className="pt-4">
-          <div className="flex gap-2">
-            <Button asChild variant="outline" className="flex-1">
-              <a 
-                href={issue?.html_url} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="flex items-center gap-2"
-              >
-                <ExternalLink className="h-4 w-4" />
-                View on GitHub
-              </a>
-            </Button>
-            <DrawerClose asChild>
-              <Button variant="secondary" className="flex-1">
-                Close
-              </Button>
-            </DrawerClose>
-          </div>
+          <Button asChild variant="outline" className="w-full">
+            <a 
+              href={issue?.html_url} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2"
+            >
+              <ExternalLink className="h-4 w-4" />
+              View on GitHub
+            </a>
+          </Button>
         </DrawerFooter>
       </DrawerContent>
     </Drawer>
