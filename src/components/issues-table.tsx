@@ -86,6 +86,9 @@ export function IssuesTable() {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-semibold">Issues</h2>
+      </div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div className="flex items-center gap-2 w-full max-w-md">
           <Input
