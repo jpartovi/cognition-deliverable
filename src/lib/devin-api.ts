@@ -140,7 +140,7 @@ export function generateIssueScopingPrompt(issue: {
     ? `Labels: ${issue.labels.map(l => l.name).join(', ')}`
     : 'No labels';
 
-  return `Please analyze this GitHub issue and provide a detailed scope assessment with a confidence score (1-10):
+  return `Please analyze this GitHub issue and provide ONLY a scope assessment with a confidence score. Do NOT attempt to solve or implement anything.
 
 **Issue #${issue.number}: ${issue.title}**
 **URL**: ${issue.html_url}
@@ -149,13 +149,14 @@ export function generateIssueScopingPrompt(issue: {
 **Description:**
 ${issue.body || 'No description provided'}
 
-Please provide:
-1. A detailed technical scope breakdown
-2. Estimated complexity and effort required
-3. Key technical challenges and considerations
-4. Dependencies and prerequisites
-5. A confidence score (1-10) for successful completion
-6. Recommended approach and implementation strategy
+**IMPORTANT: Your task is ANALYSIS ONLY. Do not write code, create files, or attempt to solve this issue.**
 
-Focus on providing actionable insights for a software engineer who would work on this issue.`;
+Please provide ONLY:
+1. **Technical Scope**: What areas of the codebase would be affected?
+2. **Complexity Assessment**: How complex is this issue to implement?
+3. **Key Challenges**: What are the main technical challenges?
+4. **Dependencies**: What prerequisites or dependencies exist?
+5. **Confidence Score**: Rate your confidence (1-10) for successful completion by a software engineer
+
+Focus on scoping and analysis only. Do not provide implementation details, code examples, or attempt to solve the issue.`;
 }
