@@ -11,28 +11,19 @@ interface CreateSessionRequest {
 }
 
 export async function createDevinSession(prompt: string): Promise<DevinSessionResponse> {
-  const apiKey = process.env.DEVIN_API_KEY;
-  const baseUrl = process.env.DEVIN_API_BASE_URL || 'https://api.devin.ai/v1';
-
-  if (!apiKey) {
-    throw new Error('DEVIN_API_KEY environment variable is not set');
-  }
-
-  const response = await fetch(`${baseUrl}/sessions`, {
+  const response = await fetch('/api/devin/sessions', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       prompt,
-      unlisted: true,
-      idempotent: true,
-    } as CreateSessionRequest),
+    }),
   });
 
   if (!response.ok) {
-    throw new Error(`Devin API error: ${response.status} ${response.statusText}`);
+    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(errorData.error || `API error: ${response.status} ${response.statusText}`);
   }
 
   return response.json() as Promise<DevinSessionResponse>;
