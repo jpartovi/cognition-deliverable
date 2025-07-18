@@ -16,11 +16,14 @@ import { formatDistanceToNow } from "date-fns";
 import { RefreshCw, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { fetchIssues } from "@/lib/github-api";
+import { IssueDrawer } from "./issue-drawer";
 
 export function IssuesTable() {
   const [issues, setIssues] = useState<GitHubIssue[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedIssue, setSelectedIssue] = useState<GitHubIssue | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const loadIssues = async () => {
     try {
@@ -39,12 +42,14 @@ export function IssuesTable() {
     loadIssues();
   }, []);
 
-  const formatDate = (dateString: string) => {
-    return formatDistanceToNow(new Date(dateString), { addSuffix: true });
-  };
 
   const getStateColor = (state: string) => {
     return state === "open" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800";
+  };
+
+  const handleRowClick = (issue: GitHubIssue) => {
+    setSelectedIssue(issue);
+    setIsDrawerOpen(true);
   };
 
   if (loading) {
@@ -117,7 +122,11 @@ export function IssuesTable() {
           </TableHeader>
           <TableBody>
             {issues.map((issue) => (
-              <TableRow key={issue.id} className="hover:bg-muted/50">
+              <TableRow 
+                key={issue.id} 
+                className="hover:bg-muted/50 cursor-pointer transition-colors"
+                onClick={() => handleRowClick(issue)}
+              >
                 <TableCell className="font-mono text-sm">
                   {issue.number}
                 </TableCell>
@@ -180,7 +189,7 @@ export function IssuesTable() {
                 </TableCell>
                 <TableCell>
                   <span className="text-sm text-muted-foreground">
-                    {formatDate(issue.created_at)}
+                    {formatDistanceToNow(new Date(issue.created_at), { addSuffix: true })}
                   </span>
                 </TableCell>
               </TableRow>
@@ -188,6 +197,12 @@ export function IssuesTable() {
           </TableBody>
         </Table>
       </div>
+
+      <IssueDrawer 
+        issue={selectedIssue}
+        isOpen={isDrawerOpen}
+        onOpenChange={setIsDrawerOpen}
+      />
     </div>
   );
-} 
+}           
