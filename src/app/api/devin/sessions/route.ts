@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 interface CreateSessionRequest {
   prompt: string;
+  title?: string;
   unlisted?: boolean;
   idempotent?: boolean;
 }
@@ -34,8 +35,9 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         prompt: body.prompt,
+        title: body.title,
         unlisted: true,
-        idempotent: true,
+        idempotent: false,
       }),
     });
 

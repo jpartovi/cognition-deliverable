@@ -6,7 +6,7 @@ interface DevinSessionResponse {
 
 
 
-export async function createDevinSession(prompt: string): Promise<DevinSessionResponse> {
+export async function createDevinSession(prompt: string, title?: string): Promise<DevinSessionResponse> {
   const response = await fetch('/api/devin/sessions', {
     method: 'POST',
     headers: {
@@ -14,6 +14,7 @@ export async function createDevinSession(prompt: string): Promise<DevinSessionRe
     },
     body: JSON.stringify({
       prompt,
+      title,
     }),
   });
 
@@ -53,7 +54,7 @@ export function generateIssueScopingPrompt(issue: {
     ? `Labels: ${issue.labels.map(l => l.name).join(', ')}`
     : 'No labels';
 
-  return `Please analyze and scope this GitHub issue. Provide a detailed assessment of what would be required to implement this feature/fix.
+  return `Without implementing any changes, please scope this GitHub issue.
 
 **Issue #${issue.number}: ${issue.title}**
 **URL**: ${issue.html_url}
@@ -62,13 +63,5 @@ export function generateIssueScopingPrompt(issue: {
 **Description:**
 ${issue.body || 'No description provided'}
 
-Please provide:
-1. **Technical Scope**: What areas of the codebase would be affected?
-2. **Implementation Approach**: High-level strategy for implementing this
-3. **Complexity Assessment**: How complex is this issue to implement?
-4. **Key Challenges**: What are the main technical challenges?
-5. **Dependencies**: What prerequisites or dependencies exist?
-6. **Confidence Score**: Rate your confidence (1-10) for successful completion
-
-Focus on providing a thorough scoping analysis that will help with implementation planning.`;
+Please DO NOT implement any changes to the codebase yet. Once you have finished scoping, simply stop and wait for futher instructions.`;
 }

@@ -51,7 +51,7 @@ export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
         labels: issue.labels,
       });
 
-      const session = await createDevinSession(prompt);
+      const session = await createDevinSession(prompt, `GitHub Issue #${issue.number}: ${issue.title}`);
       setSessionId(session.session_id);
       setSessionUrl(session.url);
 
