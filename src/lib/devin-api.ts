@@ -25,6 +25,22 @@ export async function createDevinSession(prompt: string): Promise<DevinSessionRe
   return response.json() as Promise<DevinSessionResponse>;
 }
 
+export async function getDevinSessionDetails(sessionId: string): Promise<{ status: string }> {
+  const response = await fetch(`/api/devin/sessions/${sessionId}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(errorData.error || `API error: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
 export async function sendImplementationMessage(sessionId: string): Promise<void> {
   const response = await fetch(`/api/devin/sessions/${sessionId}/message`, {
     method: 'POST',
