@@ -36,6 +36,7 @@ export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [analysisStatus, setAnalysisStatus] = useState<string>('');
+  const [sessionUrl, setSessionUrl] = useState<string | null>(null);
 
   const getStateColor = (state: string) => {
     return state === "open" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800";
@@ -48,6 +49,7 @@ export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
       setIsCreatingSession(true);
       setAnalysisResult(null);
       setAnalysisError(null);
+      setSessionUrl(null);
       setAnalysisStatus('Creating Devin session...');
 
       const prompt = generateIssueScopingPrompt({
@@ -59,6 +61,7 @@ export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
       });
 
       const session = await createDevinSession(prompt);
+      setSessionUrl(session.url);
       setAnalysisStatus('Devin is analyzing the issue...');
 
       const sessionDetails = await pollDevinSessionUntilComplete(
@@ -182,9 +185,24 @@ export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
                 </h4>
 
                 {isCreatingSession && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    {analysisStatus || 'Analyzing...'}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {analysisStatus || 'Analyzing...'}
+                    </div>
+                    {sessionUrl && (
+                      <div className="text-sm">
+                        <a 
+                          href={sessionUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          View Session Progress
+                        </a>
+                      </div>
+                    )}
                   </div>
                 )}
 
