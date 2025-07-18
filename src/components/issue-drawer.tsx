@@ -15,7 +15,9 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { formatDistanceToNow } from "date-fns";
-import { ExternalLink, X } from "lucide-react";
+import { ExternalLink, X, Brain, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { createDevinSession, generateIssueScopingPrompt } from "@/lib/devin-api";
 
 interface IssueDrawerProps {
   issue: GitHubIssue | null;
@@ -24,8 +26,33 @@ interface IssueDrawerProps {
 }
 
 export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
+
   const getStateColor = (state: string) => {
     return state === "open" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800";
+  };
+
+  const handleScopeWithDevin = async () => {
+    if (!issue) return;
+
+    try {
+      setIsCreatingSession(true);
+      const prompt = generateIssueScopingPrompt({
+        title: issue.title,
+        body: issue.body,
+        number: issue.number,
+        html_url: issue.html_url,
+        labels: issue.labels,
+      });
+
+      const session = await createDevinSession(prompt);
+      window.open(session.url, '_blank');
+    } catch (error) {
+      console.error('Failed to create Devin session:', error);
+      alert('Failed to create Devin session. Please check your API key configuration.');
+    } finally {
+      setIsCreatingSession(false);
+    }
   };
 
   return (
@@ -124,17 +151,36 @@ export function IssueDrawer({ issue, isOpen, onOpenChange }: IssueDrawerProps) {
         </div>
 
         <DrawerFooter className="pt-4">
-          <Button asChild variant="outline" className="w-full">
-            <a 
-              href={issue?.html_url} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2"
+          <div className="flex gap-2">
+            <Button 
+              onClick={handleScopeWithDevin}
+              disabled={!issue || isCreatingSession}
+              className="flex-1"
             >
-              <ExternalLink className="h-4 w-4" />
-              View on GitHub
-            </a>
-          </Button>
+              {isCreatingSession ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creating Session...
+                </>
+              ) : (
+                <>
+                  <Brain className="h-4 w-4 mr-2" />
+                  Scope with Devin
+                </>
+              )}
+            </Button>
+            <Button asChild variant="outline" className="flex-1">
+              <a 
+                href={issue?.html_url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2"
+              >
+                <ExternalLink className="h-4 w-4" />
+                View on GitHub
+              </a>
+            </Button>
+          </div>
         </DrawerFooter>
       </DrawerContent>
     </Drawer>
