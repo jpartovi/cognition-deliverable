@@ -127,7 +127,7 @@ export function IssuesTable() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {issues.map((issue) => (
+              {issues.filter(issue => issue.state === "open").map((issue) => (
                 <TableRow 
                   key={issue.id} 
                   className="hover:bg-muted/50 cursor-pointer transition-colors"
