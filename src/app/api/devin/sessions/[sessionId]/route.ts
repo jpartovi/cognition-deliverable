@@ -18,7 +18,7 @@ interface DevinSessionDetails {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { sessionId: string } }
+  { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
     const apiKey = process.env.DEVIN_API_KEY;
@@ -31,7 +31,7 @@ export async function GET(
       );
     }
 
-    const { sessionId } = params;
+    const { sessionId } = await params;
 
     const response = await fetch(`${baseUrl}/session/${sessionId}`, {
       method: 'GET',
