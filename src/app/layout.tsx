@@ -4,6 +4,7 @@ import "./globals.css";
 import Navbar from "./(components-navbar)/navbar";
 import { ModeToggle } from "./(components-navbar)/mode-toggle";
 import { Providers } from "./providers";
+import { DevinApiKeyPopover } from "./(components-navbar)/devin-api-key-popover";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,10 +20,7 @@ export const metadata: Metadata = {
   title: "GitHub Ticket Manager",
   description: "Jude's Cognition Deliverable",
   icons: {
-    icon: '/favicon.ico', // or '/icon.png' for PNG
-    // You can also specify different sizes:
-    // apple: '/apple-icon.png',
-    // shortcut: '/favicon-16x16.png',
+    icon: '/favicon.ico',
   },
 };
 
@@ -33,22 +31,21 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Providers>
-          <div className="flex-col md:flex">
-            <div className="border-b">
+          <div className="min-h-screen flex flex-col">
+            <header className="border-b">
               <div className="flex h-16 items-center px-4">
                 <Navbar className="mx-6" />
                 <div className="ml-auto flex items-center space-x-4">
+                  <DevinApiKeyPopover />
                   <ModeToggle />
                 </div>
               </div>
-            </div>
-            <div className="space-y-6 p-10 pb-16 md:block">
-              <main>{children}</main>
-            </div>
+            </header>
+            <main className="flex-1 space-y-6 p-10 pb-16">
+              {children}
+            </main>
           </div>
         </Providers>
       </body>

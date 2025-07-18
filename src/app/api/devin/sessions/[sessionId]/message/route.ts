@@ -9,13 +9,13 @@ export async function POST(
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
-    const apiKey = process.env.DEVIN_API_KEY;
+    const apiKey = request.headers.get('x-devin-api-key');
     const baseUrl = process.env.DEVIN_API_BASE_URL || 'https://api.devin.ai/v1';
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'DEVIN_API_KEY environment variable is not set' },
-        { status: 500 }
+        { error: 'Devin API key must be provided in the x-devin-api-key header.' },
+        { status: 401 }
       );
     }
 

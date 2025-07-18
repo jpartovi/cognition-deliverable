@@ -65,26 +65,3 @@ export interface GitHubIssue {
     eyes: number;
   };
 }
-
-export interface GitHubIssueSearchResponse {
-  total_count: number;
-  incomplete_results: boolean;
-  items: GitHubIssue[];
-}
-
-export interface GitHubIssueCreateRequest {
-  title: string;
-  body?: string;
-  assignees?: string[];
-  milestone?: number;
-  labels?: string[];
-}
-
-export interface GitHubIssueUpdateRequest {
-  title?: string;
-  body?: string;
-  state?: 'open' | 'closed';
-  assignees?: string[];
-  milestone?: number | null;
-  labels?: string[];
-}

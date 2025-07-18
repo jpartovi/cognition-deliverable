@@ -20,12 +20,20 @@ interface DevinSessionDetails {
   }>;
 }
 
+function getDevinApiKeyHeader(): Record<string, string> {
+  if (typeof window !== 'undefined') {
+    const key = localStorage.getItem('devinApiKey');
+    if (key) return { 'x-devin-api-key': key };
+  }
+  return {};
+}
 
 export async function createDevinSession(prompt: string, title?: string): Promise<DevinSessionResponse> {
   const response = await fetch('/api/devin/sessions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...getDevinApiKeyHeader(),
     },
     body: JSON.stringify({
       prompt,
@@ -46,6 +54,7 @@ export async function sendMessageToSession(sessionId: string, message: string): 
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...getDevinApiKeyHeader(),
     },
     body: JSON.stringify({
       message
@@ -63,6 +72,7 @@ export async function getSessionDetails(sessionId: string): Promise<DevinSession
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
+      ...getDevinApiKeyHeader(),
     },
   });
 
@@ -78,7 +88,7 @@ export async function pollSessionUntilComplete(
   sessionId: string,
   onStatusUpdate?: (status: string) => void
 ): Promise<DevinSessionDetails> {
-  const maxAttempts = 120; // 10 minutes with 5-second intervals
+  const maxAttempts = 120;
   let attempts = 0;
 
   while (attempts < maxAttempts) {
@@ -89,22 +99,34 @@ export async function pollSessionUntilComplete(
       onStatusUpdate(sessionDetails.status);
     }
 
-    // Check if the session has completed the initial scoping
-    // We consider it complete when there are messages and the status indicates completion
     if (sessionDetails.messages && sessionDetails.messages.length > 0) {
       const lastMessage = sessionDetails.messages[sessionDetails.messages.length - 1];
-      // Check if the last message is from the user (indicating scoping is done and waiting for next instruction)
       if (lastMessage.origin === 'user' || sessionDetails.status === 'completed') {
         return sessionDetails;
       }
     }
 
-    // Wait 5 seconds before next poll
     await new Promise(resolve => setTimeout(resolve, 5000));
     attempts++;
   }
 
   throw new Error('Session polling timed out');
+}
+
+export async function archiveDevinSession(sessionId: string): Promise<void> {
+  const response = await fetch(`/api/devin/sessions/${sessionId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getDevinApiKeyHeader(),
+    },
+    body: JSON.stringify({ archived: true }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(errorData.error || `API error: ${response.status} ${response.statusText}`);
+  }
 }
 
 export function generateIssueScopingPrompt(issue?: {

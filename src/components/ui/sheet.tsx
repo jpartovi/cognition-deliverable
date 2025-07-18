@@ -44,8 +44,6 @@ function SheetOverlay({
   )
 }
 
-// NOTE: To customize the width of the sheet, pass Tailwind width classes via the className prop to SheetContent.
-// The default width classes (w-3/4 sm:max-w-sm) have been removed to allow this.
 function SheetContent({
   className,
   children,

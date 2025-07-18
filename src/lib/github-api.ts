@@ -1,38 +1,12 @@
-import { GitHubIssue, GitHubIssueSearchResponse } from '@/types/github';
+import { GitHubIssue } from '@/types/github';
 
 const GITHUB_API_BASE = 'https://api.github.com';
-const REPO_OWNER = 'jpartovi';
-const REPO_NAME = 'cognition-deliverable';
 
-export async function fetchIssues(): Promise<GitHubIssue[]> {
+export async function fetchIssues(repo: string): Promise<GitHubIssue[]> {
+  if (!repo || !repo.includes('/')) return [];
   try {
     const response = await fetch(
-      `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/issues?state=all&per_page=100`,
-      {
-        headers: {
-          'Accept': 'application/vnd.github.v3+json',
-          'User-Agent': 'cognition-deliverable-app'
-        },
-        next: { revalidate: 300 } // Cache for 5 minutes
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`GitHub API error: ${response.status}`);
-    }
-
-    const issues = await response.json();
-    return issues as GitHubIssue[];
-  } catch (error) {
-    console.error('Error fetching issues:', error);
-    throw error;
-  }
-}
-
-export async function searchIssues(query: string): Promise<GitHubIssueSearchResponse> {
-  try {
-    const response = await fetch(
-      `${GITHUB_API_BASE}/search/issues?q=repo:${REPO_OWNER}/${REPO_NAME}+${encodeURIComponent(query)}&per_page=100`,
+      `${GITHUB_API_BASE}/repos/${repo}/issues?state=all&per_page=100`,
       {
         headers: {
           'Accept': 'application/vnd.github.v3+json',
@@ -43,13 +17,14 @@ export async function searchIssues(query: string): Promise<GitHubIssueSearchResp
     );
 
     if (!response.ok) {
-      throw new Error(`GitHub API error: ${response.status}`);
+      // If repo is not found or not public, return empty array
+      return [];
     }
 
-    const searchResponse = await response.json();
-    return searchResponse as GitHubIssueSearchResponse;
+    const issues = await response.json();
+    return issues as GitHubIssue[];
   } catch (error) {
-    console.error('Error searching issues:', error);
-    throw error;
+    console.error('Error fetching issues:', error);
+    return [];
   }
 } 
