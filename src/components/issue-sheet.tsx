@@ -54,7 +54,6 @@ export function IssueSheet({ issue, isOpen, onOpenChange }: IssueSheetProps) {
     const session = await createDevinSession(prompt, `GitHub Issue #${issue.number}: ${issue.title}`);
     setSessionId(session.session_id);
     setSessionUrl(session.url);
-    // Start polling for status
     setDevinStatus("Polling Devin session status...");
     pollSessionUntilComplete(session.session_id, (status) => setDevinStatus(`Devin is ${status}`))
       .catch(() => setDevinStatus("Unable to get session status"));

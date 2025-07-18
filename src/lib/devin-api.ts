@@ -22,7 +22,7 @@ interface DevinSessionDetails {
 
 function getDevinApiKeyHeader(): Record<string, string> {
   if (typeof window !== 'undefined') {
-    const key = localStorage.getItem('devinApiKey');
+    const key = sessionStorage.getItem('devinApiKey');
     if (key) return { 'x-devin-api-key': key };
   }
   return {};
