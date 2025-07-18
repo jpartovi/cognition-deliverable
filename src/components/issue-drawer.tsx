@@ -7,7 +7,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
-  DrawerClose,
   DrawerContent,
   DrawerDescription,
   DrawerFooter,
@@ -15,7 +14,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { formatDistanceToNow } from "date-fns";
-import { ExternalLink, X } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 
 interface IssueDrawerProps {
   issue: GitHubIssue | null;
