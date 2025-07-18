@@ -4,11 +4,6 @@ interface DevinSessionResponse {
   is_new_session: boolean;
 }
 
-interface CreateSessionRequest {
-  prompt: string;
-  unlisted?: boolean;
-  idempotent?: boolean;
-}
 
 export async function createDevinSession(prompt: string): Promise<DevinSessionResponse> {
   const response = await fetch('/api/devin/sessions', {
