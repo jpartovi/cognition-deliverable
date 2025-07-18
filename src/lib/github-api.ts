@@ -17,7 +17,6 @@ export async function fetchIssues(repo: string): Promise<GitHubIssue[]> {
     );
 
     if (!response.ok) {
-      // If repo is not found or not public, return empty array
       return [];
     }
 

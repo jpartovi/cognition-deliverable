@@ -51,7 +51,6 @@ export function IssuesTable() {
     }
   };
 
-  // Load repo from sessionStorage on mount
   useEffect(() => {
     const stored = typeof window !== 'undefined' ? sessionStorage.getItem("devinRepo") : null;
     if (stored) {
@@ -59,7 +58,6 @@ export function IssuesTable() {
     }
   }, []);
 
-  // Save repo to sessionStorage on change
   const handleRepoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setRepo(e.target.value);
     if (typeof window !== 'undefined') {
