@@ -13,11 +13,26 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
-import { RefreshCw } from "lucide-react";
-import { useState, useEffect } from "react";
+import { RefreshCw, Search, Filter, X } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
 import { fetchIssues } from "@/lib/github-api";
 import { IssueSheet } from "./issue-sheet";
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+interface FilterState {
+  states: string[];
+  labels: string[];
+  assignees: string[];
+  search: string;
+}
 
 export function IssuesTable() {
   const [repo, setRepo] = useState("");
@@ -26,6 +41,12 @@ export function IssuesTable() {
   const [error, setError] = useState<string | null>(null);
   const [selectedIssue, setSelectedIssue] = useState<GitHubIssue | null>(null);
   const [isIssueSheetOpen, setIsIssueSheetOpen] = useState(false);
+  const [filters, setFilters] = useState<FilterState>({
+    states: ["open"],
+    labels: [],
+    assignees: [],
+    search: "",
+  });
 
   const isValidRepo = repo.includes("/") && repo.split("/").length === 2;
 
@@ -42,6 +63,8 @@ export function IssuesTable() {
       setIssues(fetchedIssues);
       if (fetchedIssues.length === 0) {
         setError("No issues found or invalid public repo");
+      } else {
+        setError(null);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load issues');
@@ -84,25 +107,221 @@ export function IssuesTable() {
     setIsIssueSheetOpen(true);
   };
 
+  const uniqueLabels = useMemo(() => {
+    const labelSet = new Set<string>();
+    issues.forEach(issue => {
+      issue.labels.forEach(label => labelSet.add(label.name));
+    });
+    return Array.from(labelSet).sort();
+  }, [issues]);
+
+  const uniqueAssignees = useMemo(() => {
+    const assigneeSet = new Set<string>();
+    issues.forEach(issue => {
+      if (issue.assignee) {
+        assigneeSet.add(issue.assignee.login);
+      }
+    });
+    return Array.from(assigneeSet).sort();
+  }, [issues]);
+
+  const filteredIssues = useMemo(() => {
+    return issues.filter(issue => {
+      if (filters.states.length > 0 && !filters.states.includes(issue.state)) {
+        return false;
+      }
+
+      if (filters.labels.length > 0) {
+        const issueLabels = issue.labels.map(label => label.name);
+        const hasMatchingLabel = filters.labels.some(filterLabel => 
+          issueLabels.includes(filterLabel)
+        );
+        if (!hasMatchingLabel) return false;
+      }
+
+      if (filters.assignees.length > 0) {
+        if (!issue.assignee || !filters.assignees.includes(issue.assignee.login)) {
+          return false;
+        }
+      }
+
+      if (filters.search.trim()) {
+        const searchTerm = filters.search.toLowerCase();
+        const matchesTitle = issue.title.toLowerCase().includes(searchTerm);
+        const matchesBody = issue.body?.toLowerCase().includes(searchTerm) || false;
+        const matchesNumber = issue.number.toString().includes(searchTerm);
+        const matchesAuthor = issue.user.login.toLowerCase().includes(searchTerm);
+        
+        if (!matchesTitle && !matchesBody && !matchesNumber && !matchesAuthor) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [issues, filters]);
+
+  const updateFilter = (key: keyof FilterState, value: string | string[]) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const toggleFilterValue = (key: 'states' | 'labels' | 'assignees', value: string) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: prev[key].includes(value)
+        ? prev[key].filter(item => item !== value)
+        : [...prev[key], value]
+    }));
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      states: ["open"],
+      labels: [],
+      assignees: [],
+      search: "",
+    });
+  };
+
+  const hasActiveFilters = filters.labels.length > 0 || 
+    filters.assignees.length > 0 || 
+    filters.search.trim() !== "" ||
+    (filters.states.length !== 1 || !filters.states.includes("open"));
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-semibold">Issues</h2>
       </div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <div className="flex items-center gap-2 w-full max-w-md">
-          <Input
-            placeholder="Enter public repo that is connected to Devin (owner/repo)"
-            value={repo}
-            onChange={handleRepoChange}
-            className="min-w-[420px]"
-          />
-          <Button onClick={loadIssues} variant="outline" size="sm" disabled={!isValidRepo || loading}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex items-center gap-2 w-full max-w-md">
+            <Input
+              placeholder="Enter public repo that is connected to Devin (owner/repo)"
+              value={repo}
+              onChange={handleRepoChange}
+              className="min-w-[420px]"
+            />
+            <Button onClick={loadIssues} variant="outline" size="sm" disabled={!isValidRepo || loading}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
+          <span className="text-sm text-muted-foreground">
+            {filteredIssues.length} of {issues.length} issues
+          </span>
         </div>
-        <span className="text-sm text-muted-foreground">{issues.length} issues</span>
+
+        {isValidRepo && issues.length > 0 && (
+          <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search issues..."
+                value={filters.search}
+                onChange={(e) => updateFilter('search', e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            
+            <div className="flex gap-2 flex-wrap">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Filter className="h-4 w-4 mr-2" />
+                    State
+                    {filters.states.length > 0 && (
+                      <Badge variant="secondary" className="ml-2 h-5 px-1 text-xs">
+                        {filters.states.length}
+                      </Badge>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  <DropdownMenuLabel>Filter by state</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuCheckboxItem
+                    checked={filters.states.includes("open")}
+                    onCheckedChange={() => toggleFilterValue('states', 'open')}
+                  >
+                    Open
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={filters.states.includes("closed")}
+                    onCheckedChange={() => toggleFilterValue('states', 'closed')}
+                  >
+                    Closed
+                  </DropdownMenuCheckboxItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {uniqueLabels.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Filter className="h-4 w-4 mr-2" />
+                      Labels
+                      {filters.labels.length > 0 && (
+                        <Badge variant="secondary" className="ml-2 h-5 px-1 text-xs">
+                          {filters.labels.length}
+                        </Badge>
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-48 max-h-64 overflow-y-auto">
+                    <DropdownMenuLabel>Filter by labels</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {uniqueLabels.map(label => (
+                      <DropdownMenuCheckboxItem
+                        key={label}
+                        checked={filters.labels.includes(label)}
+                        onCheckedChange={() => toggleFilterValue('labels', label)}
+                      >
+                        {label}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
+              {uniqueAssignees.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Filter className="h-4 w-4 mr-2" />
+                      Assignees
+                      {filters.assignees.length > 0 && (
+                        <Badge variant="secondary" className="ml-2 h-5 px-1 text-xs">
+                          {filters.assignees.length}
+                        </Badge>
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-48 max-h-64 overflow-y-auto">
+                    <DropdownMenuLabel>Filter by assignees</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {uniqueAssignees.map(assignee => (
+                      <DropdownMenuCheckboxItem
+                        key={assignee}
+                        checked={filters.assignees.includes(assignee)}
+                        onCheckedChange={() => toggleFilterValue('assignees', assignee)}
+                      >
+                        {assignee}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
+                  <X className="h-4 w-4 mr-2" />
+                  Clear filters
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
       {/* Error or prompt for valid repo */}
       {!isValidRepo && (
@@ -127,7 +346,14 @@ export function IssuesTable() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {issues.filter(issue => issue.state === "open").map((issue) => (
+              {filteredIssues.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    No issues match the current filters
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredIssues.map((issue) => (
                 <TableRow 
                   key={issue.id} 
                   className="hover:bg-muted/50 cursor-pointer transition-colors"
@@ -199,7 +425,8 @@ export function IssuesTable() {
                     </span>
                   </TableCell>
                 </TableRow>
-              ))}
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
@@ -221,4 +448,4 @@ export function IssuesTable() {
       />
     </div>
   );
-}           
+}                                                                  
